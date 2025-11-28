@@ -1,0 +1,36 @@
+name: ping-render-health
+
+on:
+  schedule:
+    - cron: '*/4 * * * *'   # every 4 minutes
+  workflow_dispatch: {}     # lets you run it manually from Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        env:
+          HEALTH_URL: ${{ secrets.HEALTH_URL }}
+        run: |
+          if [ -z "$HEALTH_URL" ]; then
+            echo "ERROR: HEALTH_URL not set. Please add it to repo secrets."
+            exit 1
+          fi
+
+          # Try up to 3 times with short backoff in case of flakiness
+          n=0
+          until [ $n -ge 3 ]
+          do
+            curl -fsS -o /dev/null "$HEALTH_URL" && break
+            n=$((n+1))
+            echo "Attempt $n failed, sleeping $((n*2))s"
+            sleep $((n*2))
+          done
+
+          if [ $n -ge 3 ]; then
+            echo "health ping failed after 3 attempts"
+            exit 1
+          fi
+
+          echo "health ping succeeded"
